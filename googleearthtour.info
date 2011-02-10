@@ -1,0 +1,5 @@
+; $Id$
+name = Google Earth Tour
+description = Generates a KML tour file containing the schools and their teasers
+core = 6.x
+package = Other

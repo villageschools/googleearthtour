@@ -1,0 +1,160 @@
+<?php
+	// $Id$
+
+    /**
+    * Display help and module information
+    * @param path which path of the site we're displaying help
+    * @param arg array that holds the current path as would be returned from arg() function
+    * @return help text for the path
+    */
+    function googleearthtour_help($path, $arg) 
+    {
+        $output = ''; 
+      
+        switch ($path) 
+        {
+            case ("admin/help#school"):
+            $output = '<p>'.  t("Defines an editable school object") .'</p>';
+            break;
+        }
+
+        return $output;
+    }
+
+
+    /**
+    * Valid permissions for this module
+    * @return array An array of valid permissions for the onthisdate module
+    */
+    function googleearthtour_perm() 
+    {
+        return array('administer school content');
+    }
+    
+    
+    /**
+    * Implementation of hook_block().
+    * @param string $op one of "list", "view", "save" and "configure"
+    * @param integer $delta code to identify the block
+    * @param array $edit only for "save" operation
+    */
+    function googleearthtour_block($op = 'list', $delta = 0, $edit = array()) 
+    {
+        $block = array();
+
+        switch ($op)
+        {
+            case ("list"):
+            {
+                $block[0]["info"] = t("Google Earth Tour");
+                break;
+            }
+
+            case ("view"):
+            {
+                $schools = array();
+
+                $block["subject"] = "";  
+                $block["content"] = 
+'<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+    <Document>
+        <name>VSI Schools Tour</name>
+        <open>1</open>
+        <Style id="SchoolIcon">
+          <IconStyle>
+            <Icon>
+              <href>http://www.villageschools.org/images/vst-logo-bubble2.png</href>
+            </Icon>
+          </IconStyle>
+        </Style>
+
+        <gx:Tour>
+            <name>VSI Schools Tour</name>
+            <gx:Playlist>';
+
+                $query = "SELECT n.nid, f.filepath as picture, n.title, s.field_teaser_value as teaser, s.field_name_value as name, s.field_point_value as point, s.field_status_value as status FROM {node} n LEFT JOIN {content_type_school} s ON n.nid = s.nid LEFT JOIN files f on s.field_picture_fid = f.fid WHERE n.status = 1 AND n.type = 'school' and s.field_point_value != '' ORDER BY status ASC";
+                $query_result =  db_query($query);
+                
+                while($s = db_fetch_object($query_result))
+                    $schools[] = $s;
+                
+                foreach ($schools as $school)
+                {
+                    $block["content"] .= "
+                <gx:FlyTo>
+                    <gx:duration>10</gx:duration>
+                    <LookAt>
+                        <longitude>" . preg_replace("/[^,]+,/", "", $school->point) . "</longitude>
+                        <latitude>" . preg_replace("/,.+/", "", $school->point) . "</latitude>
+                        <altitude>0</altitude>
+                        <heading>0</heading>
+                        <tilt>0</tilt>
+                        <range>1000</range>
+                    </LookAt>
+                </gx:FlyTo>
+                <gx:AnimatedUpdate>
+                    <Update>
+                        <targetHref/>
+                        <Change>
+                            <Placemark targetId=\"School" . $school->nid . "\">
+                                <gx:balloonVisibility>1</gx:balloonVisibility>
+                            </Placemark>
+                        </Change>
+                    </Update>
+                </gx:AnimatedUpdate>
+                <gx:Wait>
+                    <gx:duration>7</gx:duration>
+                </gx:Wait>
+                <gx:AnimatedUpdate>
+                    <Update>
+                        <targetHref/>
+                        <Change>
+                            <Placemark targetId=\"School" . $school->nid . "\">
+                                <gx:balloonVisibility>0</gx:balloonVisibility>
+                            </Placemark>
+                        </Change>
+                    </Update>
+                </gx:AnimatedUpdate>
+";
+                }
+                
+                $block["content"] .= "
+            </gx:Playlist>
+        </gx:Tour>
+";
+                
+                foreach ($schools as $school)
+                {
+                    $block["content"] .= "
+        <Placemark id=\"School" . $school->nid . "\">
+            <name>" . $school->title . "</name>
+            <description>
+                <![CDATA[
+                    <table width=\"500\" border=\"0\" padding=\"5\">
+                    <tr>
+                        <td valign=\"top\">" . $school->teaser . "</td>
+                        " . ($school->picture != "" ? "<td valign=\"top\"><img width=\"200px\" src=\"http://" . $_SERVER["HTTP_HOST"] . DIR_WEB_ROOT . "/" . $school->picture  . "\" /></tr>" : "") . "
+                    </tr>
+                    </table>                
+                    <a href=\"http://" . $_SERVER["HTTP_HOST"] . DIR_WEB_ROOT . "/schools/" . $school->name . "\">more &raquo;</a>
+                ]]>
+                </description>
+            <Point>
+                <coordinates>" . preg_replace("/[^,]+,/", "", $school->point) . "," . preg_replace("/,.+/", "", $school->point) . "</coordinates>
+            </Point>
+            <styleUrl>#SchoolIcon</styleUrl>
+        </Placemark>
+";
+                }
+            
+                $block["content"] .= "
+    </Document>
+</kml>";
+
+                break;
+            }
+        }  
+
+        return $block;
+    }
